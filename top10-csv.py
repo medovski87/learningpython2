@@ -3,8 +3,8 @@ import requests
 import json
 from bs4 import BeautifulSoup
 
-API_KEY = "YOUR_GOOGLE_API_KEY"  # Replace with your actual API Key
-CX = "YOUR_CUSTOM_SEARCH_ENGINE_ID"  # Replace with your Programmable Search Engine ID
+API_KEY = "AIzaSyBLrsbit4JdNYB2vbZvSDB9p7lEWqom8u4"  # Replace with your actual API Key
+CX = "f39f147910565420e"  # Replace with your Programmable Search Engine ID
 
 def google_search(query):
     """Fetch Google search results with title, meta description, and link."""
