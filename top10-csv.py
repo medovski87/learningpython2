@@ -29,11 +29,13 @@ def google_search(query):
     for item in data["items"]:
         link = item.get("link", "No link found")
         main_page_name = get_main_page_name(link)  # Extract main page (domain) name
+        meta_description = get_meta_description(link)  # Fetch actual meta description
         full_text_word_count = get_page_word_count(link)  # Fetch full page text and count words
 
         results.append({
             "Title": item.get("title", "No title found"),
             "Main Page Name": main_page_name,
+            "Meta Description": meta_description,
             "Full Page Word Count": full_text_word_count,
             "Link": link
         })
@@ -44,6 +46,20 @@ def get_main_page_name(url):
     """Extract the main domain name from the URL."""
     parsed_url = urlparse(url)
     return parsed_url.netloc  # Returns domain (e.g., 'example.com')
+
+def get_meta_description(url):
+    """Fetch the actual meta description from the page source."""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=5)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        meta_tag = soup.find("meta", attrs={"name": "description"})
+        if meta_tag and "content" in meta_tag.attrs:
+            return meta_tag["content"]
+    except requests.exceptions.RequestException:
+        return "Could not retrieve meta description"
+    return "No meta description found"
 
 def get_page_word_count(url):
     """Fetch the full page text and count words."""
@@ -64,7 +80,7 @@ def get_page_word_count(url):
     except requests.exceptions.RequestException:
         return "Could not retrieve page content"
 
-st.title("Google Search Scraper with Full Page Word Count & Main Page Name")
+st.title("Google Search Scraper with Full Page Word Count & Meta Description")
 query = st.text_input("Enter search keyword:")
 
 if st.button("Search"):
@@ -77,5 +93,7 @@ if st.button("Search"):
             st.subheader(f"Result {i}")
             st.write(f"**Title:** {res['Title']}")
             st.write(f"**Main Page Name:** {res['Main Page Name']}")
+            st.write(f"**Meta Description:** {res['Meta Description']}")
             st.write(f"**Full Page Word Count:** {res['Full Page Word Count']}")
             st.write(f"[Link]({res['Link']})")
+
