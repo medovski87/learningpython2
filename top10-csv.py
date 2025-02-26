@@ -8,7 +8,7 @@ API_KEY = "AIzaSyBLrsbit4JdNYB2vbZvSDB9p7lEWqom8u4"  # Replace with your actual 
 CX = "f39f147910565420e"  # Replace with your Programmable Search Engine ID
 
 def google_search(query):
-    """Fetch Google search results with title, meta description, link, and internal link count."""
+    """Fetch Google search results with title, meta description, link, and internal/external link counts."""
     url = f"https://www.googleapis.com/customsearch/v1?q={query}&key={API_KEY}&cx={CX}"
     
     try:
@@ -26,23 +26,22 @@ def google_search(query):
         return "No results found."
 
     results = []
-    top_10_links = [item.get("link", "No link found") for item in data["items"]]
-
     for item in data["items"]:
         page_url = item.get("link", "No link found")
         main_page_name = get_main_page_name(page_url)  # Extract main page (domain) name
         meta_description = get_meta_description(page_url)  # Fetch actual meta description
         full_text_word_count = get_page_word_count(page_url)  # Fetch full page text and count words
         
-        # Crawl the whole domain and count internal links pointing to this specific page
-        internal_links_pointing_to_page = crawl_website_for_internal_links(main_page_name, page_url, depth=3)
+        # Count internal & outgoing links FROM the page
+        internal_links_from_page, outgoing_links_from_page = count_links_from_page(page_url, main_page_name)
 
         results.append({
             "Title": item.get("title", "No title found"),
             "Main Page Name": main_page_name,
             "Meta Description": meta_description,
             "Full Page Word Count": full_text_word_count,
-            "Internal Links to This Page (Whole Site)": internal_links_pointing_to_page,
+            "Internal Links from This Page": internal_links_from_page,
+            "Outgoing Links from This Page": outgoing_links_from_page,
             "Link": page_url
         })
 
@@ -86,44 +85,32 @@ def get_page_word_count(url):
     except requests.exceptions.RequestException:
         return "Could not retrieve page content"
 
-def crawl_website_for_internal_links(start_url, target_page, depth=3):
-    """Crawl the entire website and count internal links pointing to the target page."""
-    base_domain = urlparse(start_url).netloc
-    to_crawl = {start_url}  # Start crawling from homepage
-    crawled = set()
-    internal_links_pointing_to_target = 0
+def count_links_from_page(url, base_domain):
+    """Count total internal & outgoing links FROM the given page."""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=5)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        internal_links = set()
+        outgoing_links = set()
 
-    while to_crawl and depth > 0:
-        current_page = to_crawl.pop()
-        if current_page in crawled:
-            continue
+        for link in soup.find_all("a", href=True):
+            full_link = urljoin(url, link["href"])
+            parsed_link = urlparse(full_link)
 
-        crawled.add(current_page)
-        depth -= 1  # Reduce crawling depth
+            if parsed_link.netloc == base_domain:
+                internal_links.add(full_link)  # Internal link
+            else:
+                outgoing_links.add(full_link)  # Outgoing link
 
-        try:
-            headers = {"User-Agent": "Mozilla/5.0"}
-            response = requests.get(current_page, headers=headers, timeout=5)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "html.parser")
+        return len(internal_links), len(outgoing_links)
 
-            for link in soup.find_all("a", href=True):
-                full_link = urljoin(current_page, link["href"])
-                parsed_link = urlparse(full_link)
+    except requests.exceptions.RequestException:
+        return "Could not retrieve links", "Could not retrieve links"
 
-                # Keep only links within the same domain
-                if parsed_link.netloc == base_domain:
-                    if full_link == target_page:
-                        internal_links_pointing_to_target += 1  # Count links to the target page
-                    if full_link not in crawled:
-                        to_crawl.add(full_link)
-
-        except requests.exceptions.RequestException:
-            continue  # Skip failed requests
-
-    return internal_links_pointing_to_target
-
-st.title("Google Search Scraper - Internal Links (Whole Domain)")
+st.title("Google Search Scraper - Internal & Outgoing Links")
 query = st.text_input("Enter search keyword:")
 
 if st.button("Search"):
@@ -138,6 +125,6 @@ if st.button("Search"):
             st.write(f"**Main Page Name:** {res['Main Page Name']}")
             st.write(f"**Meta Description:** {res['Meta Description']}")
             st.write(f"**Full Page Word Count:** {res['Full Page Word Count']}")
-            st.write(f"**Internal Links to This Page (Whole Site):** {res['Internal Links to This Page (Whole Site)']}")
+            st.write(f"**Internal Links from This Page:** {res['Internal Links from This Page']}")
+            st.write(f"**Outgoing Links from This Page:** {res['Outgoing Links from This Page']}")
             st.write(f"[Link]({res['Link']})")
-
